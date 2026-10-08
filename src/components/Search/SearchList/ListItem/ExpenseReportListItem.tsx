@@ -44,6 +44,7 @@ import ONYXKEYS from '@src/ONYXKEYS';
 import {personalDetailsLoginSelector} from '@src/selectors/PersonalDetails';
 import {isActionLoadingSelector} from '@src/selectors/ReportMetaData';
 import type {Policy, Report} from '@src/types/onyx';
+import {isEmptyObject} from '@src/types/utils/EmptyObject';
 
 import {isTrackIntentUserSelector} from '@selectors/Onboarding';
 import {transactionViolationsByIDsSelector} from '@selectors/TransactionViolations';
@@ -431,9 +432,21 @@ function ExpenseReportListItemInner<TItem extends ListItem>({
                 </View>
             );
         }
-        if (!hasAnyVisibleViolations || !shouldShowViolationDescription) {
+        const hasSubmitErrors = !isEmptyObject(liveReportItem?.errors);
+        const shouldShowViolationsText = hasAnyVisibleViolations && shouldShowViolationDescription;
+
+        if (!shouldShowViolationsText && !hasSubmitErrors) {
             return;
         }
+
+        const messages: string[] = [];
+        if (shouldShowViolationsText) {
+            messages.push(translate('reportViolations.reportContainsExpensesWithViolations'));
+        }
+        if (hasSubmitErrors) {
+            messages.push(translate('reportViolations.reportFailedToSubmit'));
+        }
+
         return (
             <View style={[styles.flexRow, styles.alignItemsCenter, styles.mt2]}>
                 <Icon
@@ -444,7 +457,7 @@ function ExpenseReportListItemInner<TItem extends ListItem>({
                     height={12}
                 />
                 <Text style={[isLargeScreenWidth ? styles.textMicro : styles.mutedNormalTextLabel, {color: theme.textError}]}>
-                    {translate('reportViolations.reportContainsExpensesWithViolations')}
+                    {messages.join(' ')}
                 </Text>
             </View>
         );
@@ -452,6 +465,7 @@ function ExpenseReportListItemInner<TItem extends ListItem>({
         reportItem?.isRejectedReport,
         hasAnyVisibleViolations,
         shouldShowViolationDescription,
+        liveReportItem?.errors,
         styles.flexRow,
         styles.alignItemsCenter,
         styles.mt2,
@@ -468,10 +482,18 @@ function ExpenseReportListItemInner<TItem extends ListItem>({
     // Full label for the button (its whole announcement); just a row identifier for the group, whose cells are reachable.
     const rowAccessibilityLabel = canSelectMultiple ? liveReportItem.reportName : getExpenseReportRowAccessibilityLabel(liveReportItem, {translate, dateFnsLocale, convertToDisplayString});
 
+    const itemForPressable = useMemo(() => {
+        if (!item.errors) {
+            return item;
+        }
+        const {errors, ...rest} = item;
+        return rest;
+    }, [item]);
+
     // Keep nested controls reachable: a group on web, and accessible={false} on iOS (which otherwise collapses children).
     return (
         <ListItemComposed
-            item={item}
+            item={itemForPressable}
             isSelected={isSelected}
             accessible={canSelectMultiple && shouldBreakAccessibilityGrouping() ? false : undefined}
             accessibilityRole={canSelectMultiple ? CONST.ROLE.GROUP : undefined}
