@@ -183,6 +183,7 @@ function PDFView({onToggleKeyboard, onLoadComplete, fileName, onPress, isFocused
                     <PDF
                         fitPolicy={0}
                         trustAllCerts={false}
+                        enableDoubleTapZoom
                         renderActivityIndicator={() => <LoadingIndicator style={loadingIndicatorStyles} />}
                         source={{uri: sourceURL, cache: true, expiration: 864000}}
                         style={pdfStyles}
