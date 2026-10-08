@@ -3039,7 +3039,7 @@ function useSearchBulkActions({queryJSON}: UseSearchBulkActionsParams) {
             });
         }
 
-        const shouldShowUnholdOption = !isOffline && selectedTransactionsKeys.every((id) => selectedTransactions[id].canUnhold);
+        const shouldShowUnholdOption = selectedTransactionsKeys.every((id) => selectedTransactions[id].canUnhold);
 
         if (shouldShowUnholdOption) {
             options.push({
@@ -3048,11 +3048,6 @@ function useSearchBulkActions({queryJSON}: UseSearchBulkActionsParams) {
                 value: CONST.SEARCH.BULK_ACTION_TYPES.UNHOLD,
                 shouldCloseModalOnSelect: true,
                 onSelected: () => {
-                    if (isOffline) {
-                        setIsOfflineModalVisible(true);
-                        return;
-                    }
-
                     if (isDelegateAccessRestricted) {
                         showDelegateNoAccessModal();
                         return;
