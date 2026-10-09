@@ -356,6 +356,7 @@ const expenseReportColumnNamesToSortingProperty: ExpenseReportSorting = {
     [CONST.SEARCH.TABLE_COLUMNS.FIRST_APPROVER]: 'formattedFirstApprover' as const,
     [CONST.SEARCH.TABLE_COLUMNS.FIRST_APPROVED]: 'firstApproved' as const,
     [CONST.SEARCH.TABLE_COLUMNS.PAID_BY]: 'formattedPaidBy' as const,
+    [CONST.SEARCH.TABLE_COLUMNS.PAID]: 'paid' as const,
     [CONST.SEARCH.TABLE_COLUMNS.EXPORTED]: 'exported' as const,
     [CONST.SEARCH.TABLE_COLUMNS.STATUS]: 'formattedStatus' as const,
     [CONST.SEARCH.TABLE_COLUMNS.PAID_STATUS]: 'formattedPaidStatus' as const,
@@ -2640,6 +2641,43 @@ function getFirstApprovedAction(snapshotApprovedAction: OnyxTypes.ReportAction |
     return findActionByCreated(candidates, [CONST.REPORT.ACTIONS.TYPE.APPROVED, CONST.REPORT.ACTIONS.TYPE.FORWARDED], 'earliest', seed);
 }
 
+const REIMBURSEMENT_CANCELLATION_ACTION_NAMES = [
+    CONST.REPORT.ACTIONS.TYPE.REIMBURSEMENT_DEQUEUED,
+    CONST.REPORT.ACTIONS.TYPE.REIMBURSEMENT_ACH_CANCELED,
+    CONST.REPORT.ACTIONS.TYPE.REIMBURSEMENT_ACH_BOUNCE,
+];
+
+const PAYMENT_ACTION_NAMES = [
+    CONST.REPORT.ACTIONS.TYPE.REIMBURSED,
+    CONST.REPORT.ACTIONS.TYPE.MARKED_REIMBURSED,
+    CONST.REPORT.ACTIONS.TYPE.MARK_REIMBURSED_FROM_INTEGRATION,
+    CONST.REPORT.ACTIONS.TYPE.IOU,
+];
+
+function isStandingPaymentAction(action: OnyxTypes.ReportAction | undefined, latestCancellation: OnyxTypes.ReportAction | undefined): action is OnyxTypes.ReportAction {
+    if (!action) {
+        return false;
+    }
+    if (isMoneyRequestAction(action)) {
+        const originalMessage = getOriginalMessage<typeof CONST.REPORT.ACTIONS.TYPE.IOU>(action);
+        if (originalMessage?.type !== CONST.IOU.REPORT_ACTION_TYPE.PAY) {
+            return false;
+        }
+    }
+    return !latestCancellation || action.created > latestCancellation.created;
+}
+
+/**
+ * Returns the date of the latest payment action, ignoring payments at or before the latest reimbursement cancellation.
+ */
+function getPaidDate(snapshotPaidAction: OnyxTypes.ReportAction | undefined, actions: OnyxTypes.ReportAction[]): string {
+    const latestCancellation = findActionByCreated(actions, REIMBURSEMENT_CANCELLATION_ACTION_NAMES, 'latest');
+    const isStanding = (action: OnyxTypes.ReportAction | undefined): action is OnyxTypes.ReportAction => isStandingPaymentAction(action, latestCancellation);
+    const seed = isStanding(snapshotPaidAction) ? snapshotPaidAction : undefined;
+    const candidates = actions.filter(isStanding);
+    return findActionByCreated(candidates, PAYMENT_ACTION_NAMES, 'latest', seed)?.created ?? '';
+}
+
 /**
  * Returns the latest payment action between the snapshot-derived one and the given report actions, mirroring the
  * backend paid-by rules: payment actions at or before the latest reimbursement cancellation don't count, and a
@@ -2651,23 +2689,16 @@ function getLastPaidAction(
     actions: OnyxTypes.ReportAction[],
     ownerAccountID: number | undefined,
 ): OnyxTypes.ReportAction | undefined {
-    const latestCancellation = findActionByCreated(
-        actions,
-        [CONST.REPORT.ACTIONS.TYPE.REIMBURSEMENT_DEQUEUED, CONST.REPORT.ACTIONS.TYPE.REIMBURSEMENT_ACH_CANCELED, CONST.REPORT.ACTIONS.TYPE.REIMBURSEMENT_ACH_BOUNCE],
-        'latest',
-    );
+    const latestCancellation = findActionByCreated(actions, REIMBURSEMENT_CANCELLATION_ACTION_NAMES, 'latest');
     const isValidPaymentAction = (action: OnyxTypes.ReportAction | undefined): action is OnyxTypes.ReportAction => {
-        if (!action) {
+        if (!isStandingPaymentAction(action, latestCancellation)) {
             return false;
         }
         if (isMoneyRequestAction(action)) {
             const originalMessage = getOriginalMessage<typeof CONST.REPORT.ACTIONS.TYPE.IOU>(action);
-            if (originalMessage?.type !== CONST.IOU.REPORT_ACTION_TYPE.PAY || originalMessage.isSubmitterMarkedPaymentReceived) {
+            if (originalMessage?.isSubmitterMarkedPaymentReceived) {
                 return false;
             }
-        }
-        if (latestCancellation && action.created <= latestCancellation.created) {
-            return false;
         }
         if (action.actorAccountID !== ownerAccountID) {
             return true;
@@ -2681,12 +2712,7 @@ function getLastPaidAction(
     };
     const seed = isValidPaymentAction(snapshotPaidAction) ? snapshotPaidAction : undefined;
     const candidates = actions.filter(isValidPaymentAction);
-    return findActionByCreated(
-        candidates,
-        [CONST.REPORT.ACTIONS.TYPE.REIMBURSED, CONST.REPORT.ACTIONS.TYPE.MARKED_REIMBURSED, CONST.REPORT.ACTIONS.TYPE.MARK_REIMBURSED_FROM_INTEGRATION, CONST.REPORT.ACTIONS.TYPE.IOU],
-        'latest',
-        seed,
-    );
+    return findActionByCreated(candidates, PAYMENT_ACTION_NAMES, 'latest', seed);
 }
 
 /**
@@ -2834,11 +2860,11 @@ function getReportSections({
                 const formattedTo = !shouldShowBlankTo ? temporaryGetDisplayNameOrDefault({passedPersonalDetails: toDetails, translate, formatPhoneNumber}) : '';
                 const formattedFirstApprover = firstApproverAccountID ? temporaryGetDisplayNameOrDefault({passedPersonalDetails: firstApproverDetails, translate, formatPhoneNumber}) : '';
 
-                // The paid-by user is the actor on the latest payment action. It stays blank until the report is paid.
-                const lastReimbursedAction =
-                    reportItem.statusNum === CONST.REPORT.STATUS_NUM.REIMBURSED
-                        ? getLastPaidAction(lastReimbursedActionByReportID.get(reportItem.reportID), actions, reportItem.ownerAccountID)
-                        : undefined;
+                // The paid date and paid-by user come from payment actions. They stay blank until the report is paid.
+                const isReportPaid = reportItem.statusNum === CONST.REPORT.STATUS_NUM.REIMBURSED;
+                const snapshotPaidAction = lastReimbursedActionByReportID.get(reportItem.reportID);
+                const lastReimbursedAction = isReportPaid ? getLastPaidAction(snapshotPaidAction, actions, reportItem.ownerAccountID) : undefined;
+                const paid = isReportPaid ? getPaidDate(snapshotPaidAction, actions) : '';
                 const paidByAccountID = lastReimbursedAction?.actorAccountID;
                 const paidByDetails = paidByAccountID ? mergedPersonalDetails?.[paidByAccountID] : undefined;
                 const formattedPaidBy = paidByAccountID ? temporaryGetDisplayNameOrDefault({passedPersonalDetails: paidByDetails, translate, formatPhoneNumber}) : '';
@@ -2882,6 +2908,7 @@ function getReportSections({
                     exported: lastExportedActionByReportID.get(reportItem.reportID)?.created ?? '',
                     submitted: getSubmittedDate(reportItem, actions),
                     approved: getApprovedDate(reportItem, actions),
+                    paid,
                     exportedTo: getExportedToSortValue(exportedToNamesByReportID, reportItem.reportID),
                     firstApproved,
                     firstApproverAvatar: firstApproverDetails?.avatar,
@@ -4462,6 +4489,8 @@ function getSearchColumnTranslationKey(column: SearchSortBy, type?: SearchDataTy
             return 'search.filters.firstApproved';
         case CONST.SEARCH.TABLE_COLUMNS.PAID_BY:
             return 'search.filters.paidBy';
+        case CONST.SEARCH.TABLE_COLUMNS.PAID:
+            return 'search.filters.paid';
         case CONST.SEARCH.TABLE_COLUMNS.POSTED:
             return 'search.filters.posted';
         case CONST.SEARCH.TABLE_COLUMNS.EXPORTED:
@@ -7032,6 +7061,8 @@ function getTableMinWidth(
             column === CONST.SEARCH.TABLE_COLUMNS.TAX_CODE
         ) {
             minWidth += 80;
+        } else if (column === CONST.SEARCH.TABLE_COLUMNS.FIRST_APPROVED || column === CONST.SEARCH.TABLE_COLUMNS.PAID) {
+            minWidth += 102;
         } else if (column === CONST.SEARCH.TABLE_COLUMNS.CATEGORY_GL_CODE || column === CONST.SEARCH.TABLE_COLUMNS.TAG_GL_CODE) {
             minWidth += 130;
         } else {
