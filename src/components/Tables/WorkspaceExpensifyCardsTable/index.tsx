@@ -329,7 +329,6 @@ export default function WorkspaceExpensifyCardsTable({
             isItemInSearch={isItemInSearch}
             shouldUseDynamicColumns
             initialSortColumn="name"
-            narrowLayoutSortColumn="name"
             title={translate('workspace.common.expensifyCard')}
             keyExtractor={(item) => item.keyForList}
             selectionEnabled={selectionEnabled}
