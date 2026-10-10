@@ -1,13 +1,13 @@
 import type {LegacyPinchGesture} from 'react-native-gesture-handler';
 
-import {useCallback, useEffect, useState} from 'react';
+import {useCallback} from 'react';
 import {Gesture} from 'react-native-gesture-handler';
 import {useAnimatedReaction, useSharedValue, withSpring} from 'react-native-reanimated';
-import {scheduleOnRN} from 'react-native-worklets';
 
 import type {MultiGestureCanvasVariables} from './types';
 
 import {SPRING_CONFIG, ZOOM_RANGE_BOUNCE_FACTORS} from './constants';
+import {clamp} from './utils';
 
 type UsePinchGestureProps = Pick<
     MultiGestureCanvasVariables,
@@ -103,18 +103,7 @@ const usePinchGesture = ({
         [canvasSize.width, canvasSize.height, offsetX, offsetY],
     );
 
-    // The pinch gesture is disabled when we release one of the fingers
-    // On the next render, we need to re-enable the pinch gesture
-    const [pinchEnabled, setPinchEnabled] = useState(true);
-    useEffect(() => {
-        if (pinchEnabled) {
-            return;
-        }
-        setPinchEnabled(true);
-    }, [pinchEnabled]);
-
     const pinchGesture = Gesture.Pinch()
-        .enabled(pinchEnabled)
         // The first argument is not used, but must be defined
         .onTouchesDown((_evt, state) => {
             // react-compiler optimization unintentionally make all the callbacks run on the JS thread.
@@ -142,21 +131,19 @@ const usePinchGesture = ({
         .onChange((evt) => {
             'worklet';
 
-            // Disable the pinch gesture if one finger is released,
+            // Disable the pinch gesture updates if one finger is released,
             // to prevent the content from shaking/jumping
             if (evt.numberOfPointers !== 2) {
-                scheduleOnRN(setPinchEnabled, false);
                 return;
             }
 
-            const newZoomScale = pinchScale.get() * evt.scale;
-            // Limit the zoom scale to zoom range including bounce range
-            if (zoomScale.get() >= zoomRange.min * ZOOM_RANGE_BOUNCE_FACTORS.min && zoomScale.get() <= zoomRange.max * ZOOM_RANGE_BOUNCE_FACTORS.max) {
-                zoomScale.set(newZoomScale);
-                currentPinchScale.set(evt.scale);
+            const minBounce = zoomRange.min * ZOOM_RANGE_BOUNCE_FACTORS.min;
+            const maxBounce = zoomRange.max * ZOOM_RANGE_BOUNCE_FACTORS.max;
+            const newZoomScale = clamp(pinchScale.get() * evt.scale, minBounce, maxBounce);
+            zoomScale.set(newZoomScale);
+            currentPinchScale.set(newZoomScale / pinchScale.get());
 
-                triggerScaleChangedEvent();
-            }
+            triggerScaleChangedEvent();
 
             // Calculate new pinch translation
             const adjustedFocal = getAdjustedFocal(evt.focalX, evt.focalY);

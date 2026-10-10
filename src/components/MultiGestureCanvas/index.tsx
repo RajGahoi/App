@@ -252,7 +252,7 @@ function MultiGestureCanvas({
         onScaleChanged,
         isTransformGestureActive,
         shouldDisableTransformationGestures,
-    }).simultaneousWithExternalGesture(panGesture, singleTapGesture, doubleTapGesture);
+    }).simultaneousWithExternalGesture(panGesture, ...panGestureSimultaneousList);
 
     // Trigger a reset when the canvas gets inactive, but only if it was already mounted before
     const mounted = useRef(false);
