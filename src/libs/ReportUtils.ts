@@ -12414,6 +12414,25 @@ function getNonHeldAndFullAmount(
         unheldTotal = iouReport?.unheldTotal ?? unheldReimbursableTotal + (iouReport?.unheldNonReimbursableTotal ?? 0);
     }
 
+    // Fallback: If there are held expenses but the report's unheld total equals the full total (or is uninitialized),
+    // derive the unheld total from the non-held transactions directly.
+    const hasHeldExpensesLocal = hasHeldExpenses(allReportTransactions);
+    if (hasHeldExpensesLocal && (unheldTotal === total || iouReport?.unheldTotal === undefined)) {
+        const isExpenseReportLocal = isExpenseReport(iouReport);
+        const derivedUnheld = allReportTransactions.reduce((acc, transaction) => {
+            if (isOnHoldTransactionUtils(transaction)) {
+                return acc;
+            }
+            if (shouldExcludeNonReimbursables && !transaction.reimbursable) {
+                return acc;
+            }
+            return acc + getTransactionAmount(transaction, isExpenseReportLocal);
+        }, 0);
+        if (derivedUnheld !== 0) {
+            unheldTotal = derivedUnheld;
+        }
+    }
+
     const adjustedUnheldTotal = unheldTotal * coefficient;
     const adjustedTotal = total * coefficient;
 
@@ -12421,7 +12440,6 @@ function getNonHeldAndFullAmount(
     // 1. There should be held expenses
     // 2. For expense reports with negative totals, we need to ensure the unheld amount is valid
     //    by checking that the absolute values are meaningful and different
-    const hasHeldExpensesLocal = hasHeldExpenses(allReportTransactions);
     const hasValidNonHeldAmount =
         hasHeldExpensesLocal &&
         // For normal cases (positive amounts or IOU reports)

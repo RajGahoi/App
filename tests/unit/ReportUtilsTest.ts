@@ -26112,6 +26112,31 @@ describe('ReportUtils', () => {
             const result = getNonHeldAndFullAmount(expenseReport, true, [], convertToDisplayString);
             expect(result.nonHeldAmount).toContain('60.00');
         });
+
+        it('derives unheld amount from non-held transactions when report unheldTotal equals full total and held transactions exist', () => {
+            const expenseReport: Report = {
+                ...createRandomReport(0, undefined),
+                type: CONST.REPORT.TYPE.EXPENSE,
+                currency: CONST.CURRENCY.USD,
+                total: -10000,
+                unheldTotal: -10000,
+                reimbursableTotal: -10000,
+                unheldReimbursableTotal: -10000,
+            };
+            const heldTransaction: Transaction = {
+                ...buildOptimisticTransaction(5000, CONST.CURRENCY.USD, '1'),
+                comment: {hold: true},
+                reimbursable: true,
+            };
+            const nonHeldTransaction: Transaction = {
+                ...buildOptimisticTransaction(5000, CONST.CURRENCY.USD, '1'),
+                reimbursable: true,
+            };
+            const result = getNonHeldAndFullAmount(expenseReport, false, [heldTransaction, nonHeldTransaction], convertToDisplayString);
+            expect(result.fullAmount).toContain('100.00');
+            expect(result.nonHeldAmount).toContain('50.00');
+            expect(result.hasValidNonHeldAmount).toBe(true);
+        });
     });
 
     describe('hasExportError', () => {
