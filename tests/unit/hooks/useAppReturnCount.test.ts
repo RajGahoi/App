@@ -4,7 +4,7 @@ import useAppReturnCount from '@hooks/useAppReturnCount';
 
 import type {AppStateStatus} from 'react-native';
 
-import {AppState} from 'react-native';
+import {AppState, Platform} from 'react-native';
 
 const mockedAddEventListener = jest.spyOn(AppState, 'addEventListener');
 
@@ -14,9 +14,16 @@ function emitAppState(nextAppState: AppStateStatus) {
 }
 
 describe('useAppReturnCount', () => {
+    const initialPlatformOS = Platform.OS;
+
     beforeEach(() => {
+        Platform.OS = 'ios';
         mockedAddEventListener.mockClear();
         mockedAddEventListener.mockImplementation(() => ({remove: jest.fn()}) as ReturnType<typeof AppState.addEventListener>);
+    });
+
+    afterEach(() => {
+        Platform.OS = initialPlatformOS;
     });
 
     it('starts at zero', () => {
@@ -51,6 +58,19 @@ describe('useAppReturnCount', () => {
 
         // Then the app never left, so nothing is refetched
         expect(result.current).toBe(0);
+    });
+
+    it('counts a return on Android when transitioning through inactive', () => {
+        // Given an Android environment
+        Platform.OS = 'android';
+        const {result} = renderHook(() => useAppReturnCount());
+
+        // When switching to another app (which sets AppState to inactive) and reopening
+        emitAppState('inactive');
+        emitAppState('active');
+
+        // Then that counts as one return
+        expect(result.current).toBe(1);
     });
 
     it('counts a background trip that passes through inactive', () => {

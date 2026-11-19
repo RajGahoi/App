@@ -1,10 +1,11 @@
 import {useEffect, useRef, useState} from 'react';
-import {AppState} from 'react-native';
+import {AppState, Platform} from 'react-native';
 
 /**
  * Counts returns from the background. iOS also goes `inactive` for Control Center, the app switcher,
  * permission dialogs and the camera, and each of those comes back `active`, so require a real
- * background first.
+ * background first. On Android (particularly HybridApp), switching apps transitions through `inactive`,
+ * so treat `inactive` on Android as leaving the app.
  */
 function useAppReturnCount(): number {
     const [returnCount, setReturnCount] = useState(0);
@@ -12,7 +13,7 @@ function useAppReturnCount(): number {
 
     useEffect(() => {
         const subscription = AppState.addEventListener('change', (nextAppState) => {
-            if (nextAppState === 'background') {
+            if (nextAppState === 'background' || (Platform.OS === 'android' && nextAppState === 'inactive')) {
                 wasBackgroundedRef.current = true;
                 return;
             }
