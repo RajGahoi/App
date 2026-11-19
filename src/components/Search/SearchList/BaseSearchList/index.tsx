@@ -160,6 +160,14 @@ function BaseSearchList({
             return;
         }
 
+        // If focus is currently on an interactive header control (such as the select all checkbox), do not trigger row selection
+        if (typeof document !== 'undefined') {
+            const activeElement = document.activeElement;
+            if (activeElement && (activeElement.getAttribute('role') === 'checkbox' || activeElement.closest('[data-testid="selection-button"]'))) {
+                return;
+            }
+        }
+
         event?.stopPropagation();
 
         const focusedItem = data.at(focusedIndex);
