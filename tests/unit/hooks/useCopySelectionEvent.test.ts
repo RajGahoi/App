@@ -340,4 +340,27 @@ describe('useCopySelectionEvent', () => {
         editor.remove();
         row.remove();
     });
+
+    it('leaves copying to the browser when selection is inside editable content even if copy target is document', () => {
+        // Given text is selected inside an editable element, but the copy event targets the document
+        const editor = document.createElement('div');
+        Object.defineProperty(editor, 'isContentEditable', {value: true});
+        editor.textContent = 'Multi-paragraph composer text';
+        document.body.appendChild(editor);
+        const range = document.createRange();
+        range.selectNodeContents(editor);
+        const browserSelection = window.getSelection();
+        browserSelection?.removeAllRanges();
+        browserSelection?.addRange(range);
+        renderHook(() => useCopySelectionEvent());
+
+        // When the copy event bubbles from document / document.body (e.g. mouseup occurred outside window)
+        const {clipboardData, event} = dispatchCopyEvent(document.body);
+
+        // Then native copy behavior remains uninhibited and not overridden by report scraper
+        expect(event.defaultPrevented).toBe(false);
+        expect(mockGetCurrentSelection).not.toHaveBeenCalled();
+        expect(clipboardData.setData).not.toHaveBeenCalled();
+        editor.remove();
+    });
 });

@@ -44,11 +44,18 @@ function hasSelectionWithinEditableTarget(target: EventTarget | null) {
         return target.selectionStart !== null && target.selectionEnd !== null && target.selectionStart !== target.selectionEnd;
     }
 
+    const selection = window.getSelection();
+    if (selection && selection.anchorNode && !selection.isCollapsed) {
+        const anchorEl = selection.anchorNode instanceof Element ? selection.anchorNode : selection.anchorNode.parentElement;
+        if (anchorEl?.closest?.('[contenteditable="true"]') || (anchorEl as HTMLElement)?.isContentEditable) {
+            return true;
+        }
+    }
+
     if (!(target instanceof HTMLElement) || !target.isContentEditable) {
         return false;
     }
 
-    const selection = window.getSelection();
     return !!selection && (target.contains(selection.anchorNode) || target.contains(selection.focusNode));
 }
 

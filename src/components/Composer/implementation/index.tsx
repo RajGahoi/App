@@ -379,6 +379,16 @@ function Composer({
             defaultValue={defaultValue}
             autoFocus={autoFocus}
             {...props}
+            onPointerDown={(e) => {
+                if ('pointerType' in e && e.pointerType === 'mouse' && e.button === 0 && !e.ctrlKey && 'setPointerCapture' in e.currentTarget) {
+                    try {
+                        (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+                    } catch {
+                        // Pointer capture might not be supported or permitted
+                    }
+                }
+                props.onPointerDown?.(e);
+            }}
             onSelectionChange={addCursorPositionToSelectionChange}
             onContentSizeChange={(e) => {
                 setPrevHeight(e.nativeEvent.contentSize.height);
