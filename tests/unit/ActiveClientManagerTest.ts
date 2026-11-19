@@ -293,4 +293,34 @@ describe('ActiveClientManager', () => {
         expect(clientID).toBeDefined();
         expect(tab.isClientTheLeader()).toBe(true);
     });
+
+    it('does not re-request the leader lock when the browser rejects with InvalidStateError (bfcache/inactive document)', async () => {
+        // Given a tab holding the leader lock
+        const firstTab = openTab();
+        firstTab.init();
+        await waitForLocks();
+        expect(firstTab.isClientTheLeader()).toBe(true);
+
+        // Spy on navigator.locks.request to simulate an inactive document rejecting retry requests with InvalidStateError
+        const originalRequest = lockManager.request.bind(lockManager);
+        let nonStealRequests = 0;
+        jest.spyOn(lockManager, 'request').mockImplementation((name, options, callback) => {
+            if (!options.steal) {
+                nonStealRequests += 1;
+                return Promise.reject(new DOMException('The document is not active', 'InvalidStateError'));
+            }
+            return originalRequest(name, options, callback);
+        });
+
+        // When a new tab initializes and steals the leader lock (e.g. on full navigation)
+        const secondTab = openTab();
+        secondTab.init();
+        await waitForLocks();
+
+        // Then the new tab becomes the leader, and the old tab does not loop re-requesting the lock
+        expect(secondTab.isClientTheLeader()).toBe(true);
+        expect(firstTab.isClientTheLeader()).toBe(false);
+        // The first tab makes at most one retry request upon lock loss before stopping because the rejection was InvalidStateError
+        expect(nonStealRequests).toBeLessThanOrEqual(1);
+    });
 });

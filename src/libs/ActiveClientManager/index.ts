@@ -148,14 +148,21 @@ const requestLeaderLock = (shouldSteal: boolean) => {
             // Hold the lock until this tab goes away or another tab steals it
             return new Promise<void>(() => {});
         })
-        .catch(() => {
+        .catch((error: unknown) => {
             // The request was aborted because we superseded it, or another tab stole the lock from us
             if (requestID !== leaderLockRequestID) {
                 return;
             }
             isHoldingLeaderLock = false;
             notifyIfBecameLeader();
-            requestLeaderLock(false);
+
+            // Re-request only when the error is an AbortError, which indicates the lock was stolen
+            // by another tab or superseded. Rejections due to an inactive document (e.g. InvalidStateError
+            // when entering bfcache on full page navigation) must not retry, as doing so triggers
+            // an infinite synchronous microtask loop that blocks the shared renderer thread and freezes the app.
+            if (error instanceof DOMException && error.name === 'AbortError') {
+                requestLeaderLock(false);
+            }
         });
 };
 
