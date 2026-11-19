@@ -38,7 +38,7 @@ type ExpenseDefaultTableItem = TableData & {
     pendingAction?: PendingAction;
     errors?: Errors;
     onCloseError?: () => void;
-    action: () => void;
+    action?: () => void;
 };
 
 const SECTION_HEADER_TRANSLATION_KEYS = {
@@ -108,9 +108,9 @@ function WorkspaceExpenseDefaultsTableRow({item, rowIndex, shouldUseNarrowTableL
                 </View>
             )}
             <Table.Row
-                interactive
+                interactive={!!item.action}
                 rowIndex={rowIndex}
-                disabled={isDeleting || !!item.disabled}
+                disabled={isDeleting || !!item.disabled || !item.action}
                 accessibilityLabel={accessibilityLabel}
                 sentryLabel={SECTION_SENTRY_LABELS[item.section]}
                 offlineWithFeedback={{
@@ -204,13 +204,15 @@ function WorkspaceExpenseDefaultsTableRow({item, rowIndex, shouldUseNarrowTableL
                         )}
 
                         <View {...getCellAccessibilityProps(isTableSemanticsEnabled)}>
-                            <Icon
-                                src={Expensicons.ArrowRight}
-                                fill={theme.icon}
-                                additionalStyles={[styles.justifyContentCenter, styles.alignItemsCenter, (!hovered || isDeleting) && styles.opacitySemiTransparent]}
-                                width={variables.iconSizeNormal}
-                                height={variables.iconSizeNormal}
-                            />
+                            {!!item.action && (
+                                <Icon
+                                    src={Expensicons.ArrowRight}
+                                    fill={theme.icon}
+                                    additionalStyles={[styles.justifyContentCenter, styles.alignItemsCenter, (!hovered || isDeleting) && styles.opacitySemiTransparent]}
+                                    width={variables.iconSizeNormal}
+                                    height={variables.iconSizeNormal}
+                                />
+                            )}
                         </View>
                     </>
                 )}

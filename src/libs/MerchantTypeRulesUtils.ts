@@ -123,10 +123,12 @@ function saveMerchantTypeRule(policyID: string, form: MerchantTypeRuleForm, mccG
 
 function getMerchantTypeRulesTableData({
     policy,
+    canWriteRules = true,
     translate,
     onNavigate,
 }: {
     policy: Policy | undefined;
+    canWriteRules?: boolean;
     translate: LocaleContextProps['translate'];
     onNavigate: (route: Route) => void;
 }): ExpenseDefaultTableItem[] {
@@ -159,7 +161,7 @@ function getMerchantTypeRulesTableData({
             searchTokens: [merchantTypeName, conditionText, ruleDescription, decodedCategoryName],
             pendingAction: mccGroup[groupID]?.pendingAction,
             disabled: mccGroup[groupID]?.pendingAction === CONST.RED_BRICK_ROAD_PENDING_ACTION.DELETE,
-            action: () => onNavigate(getMerchantTypeRuleNavigationRoute(policyID, groupID)),
+            action: canWriteRules ? () => onNavigate(getMerchantTypeRuleNavigationRoute(policyID, groupID)) : undefined,
         };
     });
 }
@@ -326,9 +328,10 @@ function getExpenseDefaultsTableData({
     convertToDisplayString: CurrencyListActionsContextType['convertToDisplayString'];
     isOffline: boolean;
     onNavigate: (route: Route) => void;
+    canWriteRules?: boolean;
 }): ExpenseDefaultTableItem[] {
     const merchantRules = getMerchantRulesTableData({policy, policyID, rules, policyTags, translate, convertToDisplayString, isOffline, onNavigate});
-    const merchantTypeRules = getMerchantTypeRulesTableData({policy, translate, onNavigate});
+    const merchantTypeRules = getMerchantTypeRulesTableData({policy, canWriteRules, translate, onNavigate});
 
     return [...merchantRules, ...merchantTypeRules];
 }

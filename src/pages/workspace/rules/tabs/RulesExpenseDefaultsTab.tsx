@@ -39,6 +39,7 @@ function RulesExpenseDefaultsTab({policyID, canWriteRules, selectedKeys, onSelec
         convertToDisplayString,
         isOffline,
         onNavigate: Navigation.navigate,
+        canWriteRules,
     });
 
     return (
