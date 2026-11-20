@@ -724,8 +724,13 @@ function updateMultipleMoneyRequests({
         }
 
         // To build proper offline update message, we need to include the currency
+        // When generic updates and attendees are both present, attendees are dispatched via UpdateMoneyRequestAttendees
+        // so omit attendees from the generic modified expense action to avoid duplicate attendee wording in system messages.
+        const changesForReportAction = hasAttendeesUpdate && hasGenericUpdates ? genericChanges : transactionChanges;
         const optimisticTransactionChanges =
-            transactionChanges?.amount !== undefined && !transactionChanges?.currency ? {...transactionChanges, currency: getCurrency(transaction)} : transactionChanges;
+            changesForReportAction?.amount !== undefined && !changesForReportAction?.currency
+                ? {...changesForReportAction, currency: getCurrency(transaction)}
+                : changesForReportAction;
 
         // Build optimistic modified expense report action
         const optimisticReportAction = buildOptimisticModifiedExpenseReportAction(
